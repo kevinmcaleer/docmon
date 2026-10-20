@@ -1,0 +1,17 @@
+name: Publish images
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+
+jobs:
+  agent:
+    uses: ./.github/workflows/build-image.yml
+    permissions:
+      contents: read
+      packages: write
+    with:
+      image: ghcr.io/${{ github.repository_owner }}/docmon-agent
+      dockerfile: agent/Dockerfile

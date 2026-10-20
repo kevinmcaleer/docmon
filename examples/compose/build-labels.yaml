@@ -1,0 +1,13 @@
+# For your own images built with `docker compose build` (outside CI), stamp
+# provenance labels so docmon can report where each image came from.
+#
+#   GIT_SHA=$(git rev-parse HEAD) BUILD_DATE=$(date -u +%FT%TZ) docker compose build
+services:
+  myapp:
+    build:
+      context: .
+      labels:
+        org.opencontainers.image.source: https://github.com/kevinmcaleer/myapp
+        org.opencontainers.image.revision: ${GIT_SHA:-unknown}
+        org.opencontainers.image.created: ${BUILD_DATE:-unknown}
+    image: myapp:local
