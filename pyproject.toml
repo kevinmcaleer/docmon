@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "docmon"
+version = "0.1.0"
+description = "Discover which Docker containers run on which node of a LAN cluster"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.optional-dependencies]
+agent = ["docker>=7.1"]
+dev = ["docker>=7.1", "pytest>=8", "ruff>=0.6"]
+
+[project.scripts]
+docmon-agent = "docmon_agent.__main__:main"
+
+[project.urls]
+Source = "https://github.com/kevinmcaleer/docmon"
+
+[tool.setuptools.packages.find]
+where = ["schema", "agent"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["schema", "agent"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM"]

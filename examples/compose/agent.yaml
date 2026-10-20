@@ -1,0 +1,17 @@
+# Run one of these on every node:  docker compose -f agent.yaml up -d
+services:
+  docmon-agent:
+    image: ghcr.io/kevinmcaleer/docmon-agent:latest
+    container_name: docmon-agent
+    restart: unless-stopped
+    # Host networking so the broadcast leaves on the LAN and the agent sees
+    # the Pi's real hostname and IP.
+    network_mode: host
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    environment:
+      DOCMON_PORT: "50505"
+      DOCMON_INTERVAL: "60"
+      # DOCMON_NODE_NAME: pi-kitchen     # defaults to the host's hostname
+      # DOCMON_INCLUDE_STOPPED: "true"   # also report stopped containers
+      # DOCMON_LOG_LEVEL: DEBUG
