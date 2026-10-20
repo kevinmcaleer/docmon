@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>docmon</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --card: #fff; --text: #1d2330; --muted: #677085; --line: #e3e6ec;
+    --ok: #1f8f4e; --warn: #b7791f; --bad: #c53030; --link: #2b5fd9;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #12151b; --card: #1b1f27; --text: #e4e7ee; --muted: #8b93a6; --line: #2a303b;
+      --ok: #4cc27f; --warn: #e0a84a; --bad: #f07171; --link: #7aa2ff;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  header { display: flex; flex-wrap: wrap; gap: 12px; align-items: center;
+           padding: 16px; border-bottom: 1px solid var(--line); }
+  h1 { font-size: 18px; margin: 0; margin-right: auto; }
+  #summary, #updated { color: var(--muted); }
+  input { padding: 6px 10px; border: 1px solid var(--line); border-radius: 6px;
+          background: var(--card); color: var(--text); min-width: 220px; }
+  main { padding: 16px; display: grid; gap: 16px; }
+  section { background: var(--card); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  section.n-stale { border-color: var(--warn); }
+  section.n-gone { opacity: .55; }
+  .node { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: baseline;
+          padding: 10px 14px; border-bottom: 1px solid var(--line); }
+  .node h2 { font-size: 15px; margin: 0; }
+  .meta { color: var(--muted); }
+  .badge { font-size: 12px; padding: 1px 8px; border-radius: 999px; border: 1px solid currentColor; }
+  .online { color: var(--ok); } .stale-b { color: var(--warn); } .gone-b { color: var(--muted); }
+  .error { color: var(--bad); padding: 8px 14px; }
+  .wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 6px 14px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  th { font-weight: 600; color: var(--muted); font-size: 12px; }
+  tr:last-child td { border-bottom: 0; }
+  td.image { max-width: 340px; overflow: hidden; text-overflow: ellipsis; }
+  .st-running { color: var(--ok); } .st-restarting, .st-paused { color: var(--warn); }
+  .st-exited, .st-dead { color: var(--bad); }
+  a { color: var(--link); text-decoration: none; } a:hover { text-decoration: underline; }
+  code { font-size: 12px; }
+  .empty { color: var(--muted); padding: 24px; text-align: center; }
+</style>
+</head>
+<body>
+<header>
+  <h1>docmon</h1>
+  <span id="summary"></span>
+  <input id="filter" type="search" placeholder="Filter by name, image or repo" autocomplete="off">
+  <span id="updated"></span>
+</header>
+<main id="nodes"><div class="empty">Waiting for the first broadcast…</div></main>
+<script>
+const REFRESH_MS = 10000;
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g,
+  (c) => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]));
+let data = {nodes: [], containers: []};
+
+function duration(seconds) {
+  if (seconds == null) return "";
+  const d = Math.floor(seconds / 86400), h = Math.floor(seconds % 86400 / 3600),
+        m = Math.floor(seconds % 3600 / 60);
+  if (d) return `${d}d ${h}h`;
+  if (h) return `${h}h ${m}m`;
+  return m ? `${m}m` : `${Math.floor(seconds)}s`;
+}
+
+function repoName(url) {
+  return url.replace(/^https?:\/\/(www\.)?/, "").replace(/\.git$/, "");
+}
+
+function source(oci) {
+  if (!oci || !oci.source) return "";
+  const src = oci.source.replace(/\.git$/, "");
+  const safe = /^https?:\/\//.test(src);
+  let html = safe ? `<a href="${esc(src)}" target="_blank" rel="noopener">${esc(repoName(src))}</a>`
+                  : esc(src);
+  if (oci.revision) {
+    const short = oci.revision.slice(0, 7);
+    const commit = safe && /github\.com|gitlab|codeberg/.test(src)
+      ? `<a href="${esc(src)}/commit/${esc(oci.revision)}" target="_blank" rel="noopener"><code>${esc(short)}</code></a>`
+      : `<code>${esc(short)}</code>`;
+    html += ` @ ${commit}`;
+  }
+  return html;
+}
+
+function matches(c, q) {
+  if (!q) return true;
+  return [c.name, c.image, c.compose_project, c.compose_service, c.oci?.source]
+    .some((v) => String(v ?? "").toLowerCase().includes(q));
+}
+
+function render() {
+  const q = $("filter").value.trim().toLowerCase();
+  const byNode = {};
+  for (const c of data.containers) (byNode[c.node] ??= []).push(c);
+  const order = {online: 0, stale: 1, gone: 2};
+  const nodes = [...data.nodes].sort((a, b) =>
+    order[a.status] - order[b.status] || a.hostname.localeCompare(b.hostname));
+
+  const online = nodes.filter((n) => n.status === "online").length;
+  $("summary").textContent =
+    `${nodes.length} node${nodes.length === 1 ? "" : "s"} (${online} online), ` +
+    `${data.containers.length} container${data.containers.length === 1 ? "" : "s"}`;
+
+  if (!nodes.length) {
+    $("nodes").innerHTML = '<div class="empty">Waiting for the first broadcast…</div>';
+    return;
+  }
+  $("nodes").innerHTML = nodes.map((n) => {
+    const rows = (byNode[n.hostname] || []).filter((c) => matches(c, q));
+    if (q && !rows.length) return "";
+    const badge = n.status === "online" ? "online" : `${n.status}-b`;
+    return `<section class="n-${esc(n.status)}">
+      <div class="node">
+        <h2>${esc(n.hostname)}</h2>
+        <span class="badge ${badge}">${esc(n.status)}</span>
+        <span class="meta">${esc(n.ip || "")}</span>
+        <span class="meta">seen ${duration(n.last_seen_seconds_ago)} ago</span>
+        <span class="meta">agent ${esc(n.agent || "?")}</span>
+      </div>
+      ${n.error ? `<div class="error">${esc(n.error)}</div>` : ""}
+      ${rows.length ? `<div class="wrap"><table>
+        <thead><tr><th>Container</th><th>Status</th><th>Up</th><th>Image</th><th>Source</th></tr></thead>
+        <tbody>${rows.map((c) => `<tr>
+          <td>${esc(c.name)}${c.compose_project ? ` <span class="meta">${esc(c.compose_project)}</span>` : ""}</td>
+          <td class="st-${esc(c.status)}">${esc(c.status)}</td>
+          <td>${duration(c.uptime_seconds)}</td>
+          <td class="image" title="${esc(c.image_digest || c.image_id || "")}">${esc(c.image)}</td>
+          <td>${source(c.oci)}</td>
+        </tr>`).join("")}</tbody></table></div>`
+        : '<div class="empty">No containers reported</div>'}
+    </section>`;
+  }).join("");
+}
+
+async function refresh() {
+  try {
+    const [nodes, containers] = await Promise.all(
+      ["/api/nodes", "/api/containers"].map((u) => fetch(u).then((r) => r.json())));
+    data = {nodes, containers};
+    $("updated").textContent = `updated ${new Date().toLocaleTimeString()}`;
+    render();
+  } catch (err) {
+    $("updated").textContent = `refresh failed: ${err}`;
+  }
+}
+
+$("filter").addEventListener("input", render);
+refresh();
+setInterval(refresh, REFRESH_MS);
+</script>
+</body>
+</html>

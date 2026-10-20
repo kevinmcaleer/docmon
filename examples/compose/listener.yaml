@@ -1,0 +1,22 @@
+# Run this on one node:  docker compose -f listener.yaml up -d
+# Then open http://<that-node>:8080
+services:
+  docmon-listener:
+    image: ghcr.io/kevinmcaleer/docmon-listener:latest
+    container_name: docmon-listener
+    restart: unless-stopped
+    # Host networking so LAN broadcasts reach the listener (Docker's bridge
+    # network does not forward them).
+    network_mode: host
+    volumes:
+      - docmon-data:/data
+    environment:
+      DOCMON_PORT: "50505"
+      DOCMON_HTTP_PORT: "8080"
+      # DOCMON_STALE_AFTER: "3"     # missed intervals before a node is stale
+      # DOCMON_GONE_AFTER: "3600"   # seconds before a node is gone (0 = never)
+      # DOCMON_DB: ""               # empty keeps state in memory only
+      # DOCMON_LOG_LEVEL: DEBUG
+
+volumes:
+  docmon-data:

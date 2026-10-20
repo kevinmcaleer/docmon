@@ -13,7 +13,7 @@ Your existing containers need no changes.
 | --- | --- | --- |
 | Node agent | [`agent/`](agent/) | ready |
 | Shared message schema | [`schema/`](schema/) | ready |
-| Listener (web page + JSON API) | [`listener/`](listener/) | planned, [#3](https://github.com/kevinmcaleer/docmon/issues/3) |
+| Listener (web page + JSON API) | [`listener/`](listener/) | ready |
 | MCP server | [`mcp/`](mcp/) | planned, [#4](https://github.com/kevinmcaleer/docmon/issues/4) |
 
 ## Quick start: run the agent on each node
@@ -41,7 +41,23 @@ Or see what a node would send without sending it:
 docker compose -f agent.yaml run --rm docmon-agent --once --dry-run
 ```
 
-## Configuration
+## Quick start: run the listener on one node
+
+Copy [`examples/compose/listener.yaml`](examples/compose/listener.yaml) to any
+one node (it can also run an agent), start it, and open
+`http://<that-node>:8080`:
+
+```sh
+docker compose -f listener.yaml up -d
+```
+
+Every node's containers appear within about a minute. A node whose agent
+stops is marked stale after about three minutes. The JSON API and the
+listener's settings are described in [listener/README.md](listener/README.md).
+Images are published for the same platforms at
+`ghcr.io/kevinmcaleer/docmon-listener`.
+
+## Agent configuration
 
 All settings are environment variables on the agent container.
 
@@ -133,10 +149,11 @@ pip install -e '.[dev]'
 ruff check . && ruff format --check .
 pytest
 docker build -f agent/Dockerfile -t docmon-agent .
+docker build -f listener/Dockerfile -t docmon-listener .
 ```
 
 CI runs lint and tests on every push and pull request
 ([`ci.yml`](.github/workflows/ci.yml)). Pushes to `main` and `v*` tags
-publish the multi-arch agent image to GHCR
+publish the multi-arch agent and listener images to GHCR
 ([`publish.yml`](.github/workflows/publish.yml), which calls
 [`build-image.yml`](.github/workflows/build-image.yml)).
