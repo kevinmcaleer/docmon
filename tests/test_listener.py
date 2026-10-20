@@ -165,7 +165,8 @@ def test_api(state):
     state.accept(beat("pi-1", [container("web")])[0])
     state.accept(beat("pi-2", [container("web"), container("db")])[0])
     with TestClient(create_app(Config(), state, listen=False)) as client:
-        assert "docmon" in client.get("/").text
+        page = client.get("/").text
+        assert "docmon" in page and 'data-view="images"' in page
         assert [n["hostname"] for n in client.get("/api/nodes").json()] == ["pi-1", "pi-2"]
         assert len(client.get("/api/containers").json()) == 3
         assert len(client.get("/api/containers", params={"node": "pi-2"}).json()) == 2

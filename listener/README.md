@@ -12,6 +12,13 @@ Then open `http://<that-node>:8080`. The page groups containers by node and
 shows status, uptime, image and the source repo and commit from the image's
 OCI labels. It refreshes every 10 seconds.
 
+**By image** (the toggle at the top, or `/#images`) switches to one row per
+image with a column per node. A green tick shows the image is running on that
+node, and a small number shows how many containers use it there. An amber tick
+means some of them aren't running, ↻ means restarting and ✕ means stopped.
+Hover a cell to see the container names. If the same image tag runs different
+commits on different nodes, the source column flags the number of revisions.
+
 A node is **online** while datagrams keep arriving, **stale** after
 `DOCMON_STALE_AFTER` of its own intervals pass without one (3 minutes with the
 default 60s agent), and **gone** after `DOCMON_GONE_AFTER` seconds. Gone nodes

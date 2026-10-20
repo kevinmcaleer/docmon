@@ -46,12 +46,32 @@
   a { color: var(--link); text-decoration: none; } a:hover { text-decoration: underline; }
   code { font-size: 12px; }
   .empty { color: var(--muted); padding: 24px; text-align: center; }
+  .views { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+  .views button { border: 0; background: var(--card); color: var(--muted); padding: 6px 12px;
+                  font: inherit; cursor: pointer; }
+  .views button + button { border-left: 1px solid var(--line); }
+  .views button[aria-pressed="true"] { background: var(--line); color: var(--text); font-weight: 600; }
+  table.matrix th.node-col, table.matrix td.cell { text-align: center; }
+  table.matrix th.node-col.n-stale { color: var(--warn); }
+  table.matrix th.node-col.n-gone { opacity: .55; }
+  table.matrix td.first, table.matrix th.first { position: sticky; left: 0; background: var(--card); }
+  table.matrix tbody tr:hover td { background: var(--bg); }
+  .tick { color: var(--ok); font-weight: 700; font-size: 16px; } .tick.mixed { color: var(--warn); }
+  .down { color: var(--bad); font-weight: 700; font-size: 16px; } .down.restarting { color: var(--warn); }
+  .revs { color: var(--warn); }
+  .count { font-size: 11px; color: var(--muted); margin-left: 2px; }
+  .legend { color: var(--muted); padding: 8px 14px; border-top: 1px solid var(--line); font-size: 12px; }
+  .legend .tick, .legend .down { font-size: inherit; }
 </style>
 </head>
 <body>
 <header>
   <h1>docmon</h1>
   <span id="summary"></span>
+  <div class="views" role="group" aria-label="View">
+    <button type="button" data-view="nodes">By node</button>
+    <button type="button" data-view="images">By image</button>
+  </div>
   <input id="filter" type="search" placeholder="Filter by name, image or repo" autocomplete="off">
   <span id="updated"></span>
 </header>
@@ -98,10 +118,23 @@ function matches(c, q) {
     .some((v) => String(v ?? "").toLowerCase().includes(q));
 }
 
+let view = "nodes";
+try { view = localStorage.getItem("docmon.view") || view; } catch (e) { /* storage blocked */ }
+// #nodes or #images in the URL picks the view, so either can be bookmarked.
+if (location.hash === "#nodes" || location.hash === "#images") view = location.hash.slice(1);
+
+function setView(next) {
+  view = next === "images" ? "images" : "nodes";
+  try { localStorage.setItem("docmon.view", view); } catch (e) { /* storage blocked */ }
+  history.replaceState(null, "", `#${view}`);
+  for (const b of document.querySelectorAll(".views button")) {
+    b.setAttribute("aria-pressed", String(b.dataset.view === view));
+  }
+  render();
+}
+
 function render() {
   const q = $("filter").value.trim().toLowerCase();
-  const byNode = {};
-  for (const c of data.containers) (byNode[c.node] ??= []).push(c);
   const order = {online: 0, stale: 1, gone: 2};
   const nodes = [...data.nodes].sort((a, b) =>
     order[a.status] - order[b.status] || a.hostname.localeCompare(b.hostname));
@@ -115,7 +148,13 @@ function render() {
     $("nodes").innerHTML = '<div class="empty">Waiting for the first broadcast…</div>';
     return;
   }
-  $("nodes").innerHTML = nodes.map((n) => {
+  $("nodes").innerHTML = view === "images" ? renderImages(nodes, q) : renderNodes(nodes, q);
+}
+
+function renderNodes(nodes, q) {
+  const byNode = {};
+  for (const c of data.containers) (byNode[c.node] ??= []).push(c);
+  return nodes.map((n) => {
     const rows = (byNode[n.hostname] || []).filter((c) => matches(c, q));
     if (q && !rows.length) return "";
     const badge = n.status === "online" ? "online" : `${n.status}-b`;
@@ -142,6 +181,60 @@ function render() {
   }).join("");
 }
 
+// One row per image reference, one column per node.
+function renderImages(nodes, q) {
+  const images = new Map();
+  for (const c of data.containers) {
+    if (!matches(c, q)) continue;
+    let row = images.get(c.image);
+    if (!row) images.set(c.image, row = {image: c.image, oci: null, revisions: new Set(), byNode: {}});
+    if (!row.oci && c.oci?.source) row.oci = c.oci;
+    if (c.oci?.revision) row.revisions.add(c.oci.revision);
+    (row.byNode[c.node] ??= []).push(c);
+  }
+  if (!images.size) return '<div class="empty">No matching containers</div>';
+  const rows = [...images.values()].sort((a, b) => a.image.localeCompare(b.image));
+
+  const cell = (list) => {
+    if (!list) return '<td class="cell"></td>';
+    const title = esc(list.map((c) => `${c.name}: ${c.status}`).join("\n"));
+    const running = list.filter((c) => c.status === "running").length;
+    const count = list.length > 1 ? `<span class="count">${list.length}</span>` : "";
+    let mark;
+    if (running === list.length) mark = '<span class="tick">✓</span>';
+    else if (running) mark = '<span class="tick mixed">✓</span>';
+    else if (list.some((c) => c.status === "restarting")) mark = '<span class="down restarting">↻</span>';
+    else mark = '<span class="down">✕</span>';
+    return `<td class="cell" title="${title}">${mark}${count}</td>`;
+  };
+
+  const sourceCell = (row) => {
+    if (row.revisions.size > 1) {
+      const src = source({source: row.oci?.source});
+      const revs = esc([...row.revisions].map((r) => r.slice(0, 7)).join(", "));
+      return `${src} <span class="revs" title="${revs}">@ ${row.revisions.size} revisions</span>`;
+    }
+    return source(row.oci);
+  };
+
+  return `<section><div class="wrap"><table class="matrix">
+    <thead><tr><th class="first">Image</th>
+      ${nodes.map((n) => `<th class="node-col n-${esc(n.status)}" title="${esc(n.status)}">${esc(n.hostname)}</th>`).join("")}
+      <th>Source</th></tr></thead>
+    <tbody>${rows.map((row) => `<tr>
+      <td class="first image" title="${esc(row.image)}">${esc(row.image)}</td>
+      ${nodes.map((n) => cell(row.byNode[n.hostname])).join("")}
+      <td>${sourceCell(row)}</td>
+    </tr>`).join("")}</tbody></table></div>
+    <div class="legend">${rows.length} image${rows.length === 1 ? "" : "s"} ·
+      <span class="tick">✓</span> running ·
+      <span class="tick mixed">✓</span> some not running ·
+      <span class="down restarting">↻</span> restarting ·
+      <span class="down">✕</span> stopped · small number = containers on that node ·
+      hover a cell for names</div>
+  </section>`;
+}
+
 async function refresh() {
   try {
     const [nodes, containers] = await Promise.all(
@@ -155,6 +248,10 @@ async function refresh() {
 }
 
 $("filter").addEventListener("input", render);
+for (const b of document.querySelectorAll(".views button")) {
+  b.addEventListener("click", () => setView(b.dataset.view));
+}
+setView(view);
 refresh();
 setInterval(refresh, REFRESH_MS);
 </script>
