@@ -1,0 +1,16 @@
+# Run this next to the listener:  docker compose -f mcp.yaml up -d
+# MCP clients then connect to http://<that-node>:8081/mcp
+services:
+  docmon-mcp:
+    image: ghcr.io/kevinmcaleer/docmon-mcp:latest
+    container_name: docmon-mcp
+    restart: unless-stopped
+    # Host networking so 127.0.0.1:8080 reaches a listener on the same node
+    # (the listener uses host networking too).
+    network_mode: host
+    environment:
+      DOCMON_LISTENER_URL: http://127.0.0.1:8080
+      DOCMON_MCP_PORT: "8081"
+      # DOCMON_MCP_ALLOWED_HOSTS: "pi-1:*,192.168.1.10:*"  # reject other Host headers
+      # DOCMON_REGISTRY_LOOKUP: "false"   # never ask registries for missing labels
+      # DOCMON_LOG_LEVEL: DEBUG

@@ -6,15 +6,17 @@ cluster (for example a stack of Raspberry Pis on one LAN).
 Each node runs a tiny **agent** that reads its local Docker socket and, about
 once a minute, broadcasts a JSON list of its containers over UDP. A
 **listener** on any node collects those broadcasts into one view of what is
-running where, including the repo and commit each image was built from.
-Your existing containers need no changes.
+running where, including the repo and commit each image was built from. An
+optional **MCP server** lets Claude answer questions like "where is grafana
+running and which commit was it built from?". Your existing containers need
+no changes.
 
 | Part | Folder | Status |
 | --- | --- | --- |
 | Node agent | [`agent/`](agent/) | ready |
 | Shared message schema | [`schema/`](schema/) | ready |
 | Listener (web page + JSON API) | [`listener/`](listener/) | ready |
-| MCP server | [`mcp/`](mcp/) | planned, [#4](https://github.com/kevinmcaleer/docmon/issues/4) |
+| MCP server (for Claude and other MCP clients) | [`mcp/`](mcp/) | ready |
 
 ## Quick start: run the agent on each node
 
@@ -56,6 +58,21 @@ stops is marked stale after about three minutes. The JSON API and the
 listener's settings are described in [listener/README.md](listener/README.md).
 Images are published for the same platforms at
 `ghcr.io/kevinmcaleer/docmon-listener`.
+
+## Quick start: ask Claude about the cluster
+
+Run the MCP server next to the listener with
+[`examples/compose/mcp.yaml`](examples/compose/mcp.yaml), then add it to
+Claude Code:
+
+```sh
+docker compose -f mcp.yaml up -d
+claude mcp add --transport http docmon http://<that-node>:8081/mcp
+```
+
+Its tools, how it works out provenance, and configs for Claude Desktop and
+other clients are in [mcp/README.md](mcp/README.md). Images are published for
+the same platforms at `ghcr.io/kevinmcaleer/docmon-mcp`.
 
 ## Agent configuration
 
@@ -150,10 +167,11 @@ ruff check . && ruff format --check .
 pytest
 docker build -f agent/Dockerfile -t docmon-agent .
 docker build -f listener/Dockerfile -t docmon-listener .
+docker build -f mcp/Dockerfile -t docmon-mcp .
 ```
 
 CI runs lint and tests on every push and pull request
 ([`ci.yml`](.github/workflows/ci.yml)). Pushes to `main` and `v*` tags
-publish the multi-arch agent and listener images to GHCR
+publish the multi-arch agent, listener and MCP images to GHCR
 ([`publish.yml`](.github/workflows/publish.yml), which calls
 [`build-image.yml`](.github/workflows/build-image.yml)).

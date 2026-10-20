@@ -13,7 +13,9 @@ dependencies = []
 [project.optional-dependencies]
 agent = ["docker>=7.1"]
 listener = ["fastapi>=0.110", "uvicorn>=0.29"]
+mcp = ["mcp>=2.3,<3", "httpx>=0.27"]
 dev = [
+    "mcp>=2.3,<3",
     "docker>=7.1",
     "fastapi>=0.110",
     "uvicorn>=0.29",
@@ -25,19 +27,20 @@ dev = [
 [project.scripts]
 docmon-agent = "docmon_agent.__main__:main"
 docmon-listener = "docmon_listener.__main__:main"
+docmon-mcp = "docmon_mcp.__main__:main"
 
 [project.urls]
 Source = "https://github.com/kevinmcaleer/docmon"
 
 [tool.setuptools.packages.find]
-where = ["schema", "agent", "listener"]
+where = ["schema", "agent", "listener", "mcp"]
 
 [tool.setuptools.package-data]
 docmon_listener = ["static/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["schema", "agent", "listener"]
+pythonpath = ["schema", "agent", "listener", "mcp"]
 
 [tool.ruff]
 line-length = 100

@@ -39,3 +39,10 @@ jobs:
       image: ghcr.io/${{ github.repository_owner }}/docmon-listener
       dockerfile: listener/Dockerfile
       push: false
+
+  mcp-image:
+    uses: ./.github/workflows/build-image.yml
+    with:
+      image: ghcr.io/${{ github.repository_owner }}/docmon-mcp
+      dockerfile: mcp/Dockerfile
+      push: false
