@@ -56,6 +56,9 @@ docker compose -f listener.yaml up -d
 Every node's containers appear within about a minute. A node whose agent
 stops is marked stale after about three minutes. The JSON API and the
 listener's settings are described in [listener/README.md](listener/README.md).
+On a Mac with Docker Desktop, use
+[`examples/compose/listener-mac.yaml`](examples/compose/listener-mac.yaml)
+instead (see [Running on a Mac](listener/README.md#running-on-a-mac-docker-desktop)).
 Images are published for the same platforms at
 `ghcr.io/kevinmcaleer/docmon-listener`.
 

@@ -57,6 +57,34 @@ Container entries carry every field the agent sent (including `oci.source` and
 `network_mode: host` is needed because Docker's bridge network does not pass
 LAN broadcasts into a container. The listener can share a node with an agent.
 
+## Running on a Mac (Docker Desktop)
+
+On Docker Desktop, `network_mode: host` refers to Docker's Linux VM rather
+than your Mac, so with `listener.yaml` the listener runs but
+`http://localhost:8080` is refused. Use
+[`examples/compose/listener-mac.yaml`](../examples/compose/listener-mac.yaml)
+instead. It publishes `8080/tcp` and `50505/udp`:
+
+```sh
+docker compose -f listener-mac.yaml up -d
+open http://localhost:8080
+```
+
+Broadcasts have to cross Docker Desktop's port forwarding to reach the
+container, and that is less reliable for broadcast than for normal traffic.
+To check, run with `DOCMON_LOG_LEVEL: DEBUG` and watch for `beat from` lines
+in `docker logs -f docmon-listener`, or wait a minute and look at
+`http://localhost:8080/api/nodes`. If nothing arrives, you can either:
+
+- enable host networking instead: Docker Desktop 4.34 or later, under Settings →
+  Resources → Network → **Enable host networking**. Then `listener.yaml`
+  works as on a Pi.
+- or have the agents send straight to the Mac by setting
+  `DOCMON_BROADCAST_ADDR` to the Mac's LAN IP. Note that the agents then stop
+  broadcasting, so a listener on a Pi would no longer hear them.
+
+Also check the macOS firewall isn't blocking incoming connections for Docker.
+
 ## Running without Docker
 
 ```sh
