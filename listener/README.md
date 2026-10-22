@@ -54,6 +54,21 @@ Container entries carry every field the agent sent (including `oci.source` and
 | `DOCMON_DB` | `/data/docmon.sqlite` in the image | SQLite file for state; empty keeps it in memory |
 | `DOCMON_LOG_LEVEL` | `INFO` | `DEBUG` logs every beat and every rejected datagram |
 
+### Changing the web port
+
+If something else on the node already uses 8080, the listener exits with
+`address already in use`. The compose files read `DOCMON_HTTP_PORT` from your
+shell, so pick another port when starting it:
+
+```sh
+DOCMON_HTTP_PORT=8090 docker compose -f listener.yaml up -d
+sudo ss -ltnp | grep ':8080'   # shows what is holding 8080
+```
+
+Start `mcp.yaml` with the same variable so the MCP server can find the
+listener. To make the change permanent, put `DOCMON_HTTP_PORT=8090` in a
+`.env` file next to the compose file.
+
 `network_mode: host` is needed because Docker's bridge network does not pass
 LAN broadcasts into a container. The listener can share a node with an agent.
 
